@@ -1,3 +1,22 @@
 .idea
+.claude
 CLAUDE.md
-./claude
+
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build output
+dist/
+.output/
+.nuxt/
+
+# Logs
+*.log
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
