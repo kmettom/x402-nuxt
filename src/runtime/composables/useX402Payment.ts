@@ -1,6 +1,8 @@
 import {ref} from 'vue'
 import {useState} from '#imports'
 import type {EIP1193Provider, PaymentChallengeResponse, PaymentRequirement, WalletState} from '../types'
+import { createWalletClient, custom, parseUnits } from 'viem'
+import { baseSepolia } from 'viem/chains'
 
 export function useX402Payment() {
   const isPaying = ref(false)
@@ -13,56 +15,92 @@ export function useX402Payment() {
     error: null,
   }))
 
+
   async function signPayment(requirement: PaymentRequirement | null): Promise<string> {
-    console.log("signPayment")
-    if(!requirement){
-      throw new Error('requirement missing.')
-    }
-    if (!import.meta.client) {
-      throw new Error('signPayment can only be called on the client.')
-    }
+    if (!requirement) throw new Error('requirement missing.')
+    if (!import.meta.client) throw new Error('signPayment can only be called on the client.')
 
     const ethereum = (window as unknown as { ethereum?: EIP1193Provider }).ethereum
-    if (!ethereum) {
-      throw new Error('MetaMask is not available. Please install MetaMask to make payments.')
+    if (!ethereum) throw new Error('MetaMask not available.')
+
+    const walletClient = createWalletClient({
+      chain: baseSepolia,
+      transport: custom(ethereum),
+    })
+
+    const [account] = await walletClient.requestAddresses()
+
+    try {
+      await walletClient.switchChain({ id: baseSepolia.id })
+    } catch (err: any) {
+      // 4902 = chain not added to MetaMask
+      if (err.code === 4902) {
+        await walletClient.addChain({ chain: baseSepolia })
+        await walletClient.switchChain({ id: baseSepolia.id })
+      } else {
+        throw err
+      }
     }
 
-    // TODO: Replace personal_sign with EIP-712 typed data signing via viem
-    // for proper ExactEvmScheme compliance.
+    const validAfter = BigInt(0)
+    const validBefore = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 min window
+    const nonce = crypto.getRandomValues(new Uint8Array(32))
+    const nonceHex = ('0x' + Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
 
-    console.log("requirement", requirement)
+    // USDC contract on Base Sepolia
+    const usdcAddress = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}`
 
-    const payload = {
-      scheme: requirement.scheme,
+    const signature = await walletClient.signTypedData({
+      account,
+      domain: {
+        name: 'USDC',
+        version: '2',
+        chainId: 84532,
+        verifyingContract: usdcAddress,
+      },
+      types: {
+        TransferWithAuthorization: [
+          { name: 'from',        type: 'address' },
+          { name: 'to',          type: 'address' },
+          { name: 'value',       type: 'uint256' },
+          { name: 'validAfter',  type: 'uint256' },
+          { name: 'validBefore', type: 'uint256' },
+          { name: 'nonce',       type: 'bytes32' },
+        ],
+      },
+      primaryType: 'TransferWithAuthorization',
+      message: {
+        from:        account,
+        to:          requirement.payTo as `0x${string}`,
+        value:       BigInt(requirement.maxAmountRequired),
+        validAfter,
+        validBefore,
+        nonce:       nonceHex,
+      },
+    })
+
+    // Build the payload the facilitator expects
+    const paymentData = {
+      x402Version: 1,
+      scheme: 'exact-evm',
       network: requirement.network,
-      resource: requirement.resource,
-      amount: requirement.maxAmountRequired,
-      payTo: requirement.payTo,
-      payer: wallet.value.address,
-      timestamp: Date.now(),
+      payload: {
+        signature,
+        authorization: {
+          from:        account,
+          to:          requirement.payTo,
+          value:       requirement.maxAmountRequired,
+          validAfter:  validAfter.toString(),
+          validBefore: validBefore.toString(),
+          nonce:       nonceHex,
+        },
+      },
     }
 
-    const message = JSON.stringify(payload)
-
-    const signature = await ethereum.request({
-      method: 'personal_sign',
-      params: [message, wallet.value.address],
-    }) as string
-
-    const paymentData = { ...payload, signature }
     return btoa(JSON.stringify(paymentData))
   }
 
-  /**
-   * Fetch a resource with automatic 402 payment handling.
-   *
-   * If the server responds with 402, prompts the user to sign a payment
-   * via MetaMask and retries with the `x-payment` header.
-   *
-   * @param url - The URL to fetch.
-   * @param options - Standard fetch RequestInit options.
-   * @returns The final Response after payment (if required).
-   */
+
   async function pay(url: string, options: RequestInit = {}): Promise<Response> {
     error.value = null
     const response = await fetch(url, options)

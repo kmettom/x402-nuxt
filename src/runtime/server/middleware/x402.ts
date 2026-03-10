@@ -64,7 +64,6 @@ export default defineEventHandler(async (event) => {
           description: `Payment required for ${url.pathname}`,
           payTo: addressPayTo,
           payer: addressPayer,
-          timestamp: 1772878569
         },
       ],
     }
