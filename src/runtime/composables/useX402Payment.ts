@@ -1,19 +1,7 @@
-import { ref } from 'vue'
-import { useState } from '#imports'
-import type { PaymentChallengeResponse, PaymentRequirement, WalletState, EIP1193Provider } from '../types'
+import {ref} from 'vue'
+import {useState} from '#imports'
+import type {EIP1193Provider, PaymentChallengeResponse, PaymentRequirement, WalletState} from '../types'
 
-/**
- * Composable for performing x402 payment flows.
- *
- * Wraps `fetch` to automatically handle 402 Payment Required responses:
- * 1. Detect 402 and parse payment requirements from the response body.
- * 2. Sign the payment using the connected MetaMask wallet.
- * 3. Retry the original request with the `x-payment` header attached.
- *
- * @param amount - Payment amount in smallest token unit (e.g. wei).
- * @param currency - Token symbol or contract address.
- * @param recipient - EVM address receiving payment.
- */
 export function useX402Payment() {
   const isPaying = ref(false)
   const error = ref<string | null>(null)
@@ -25,14 +13,11 @@ export function useX402Payment() {
     error: null,
   }))
 
-  /**
-   * Sign a payment requirement using MetaMask.
-   * Constructs the x-payment header payload and signs it via personal_sign.
-   *
-   * @param requirement - The payment requirement from the 402 challenge.
-   * @returns A base64-encoded payment header string.
-   */
-  async function signPayment(requirement: PaymentRequirement): Promise<string> {
+  async function signPayment(requirement: PaymentRequirement | null): Promise<string> {
+    console.log("signPayment")
+    if(!requirement){
+      throw new Error('requirement missing.')
+    }
     if (!import.meta.client) {
       throw new Error('signPayment can only be called on the client.')
     }
@@ -44,6 +29,9 @@ export function useX402Payment() {
 
     // TODO: Replace personal_sign with EIP-712 typed data signing via viem
     // for proper ExactEvmScheme compliance.
+
+    console.log("requirement", requirement)
+
     const payload = {
       scheme: requirement.scheme,
       network: requirement.network,
@@ -83,39 +71,33 @@ export function useX402Payment() {
       return response
     }
 
-    // Handle 402 challenge
     isPaying.value = true
 
     try {
       const challenge: PaymentChallengeResponse = await response.json()
 
       if (!challenge.accepts?.length) {
-        throw new Error('Server returned 402 but provided no payment requirements.')
+        console.log('Server returned 402 but provided no payment requirements.')
       }
 
-      // Ensure wallet is connected
       if (!wallet.value.isConnected) {
-        throw new Error('Wallet must be connected before making a payment. Call useWallet().connect() first.')
+        console.log('Wallet must be connected before making a payment. Call useWallet().connect() first.')
       }
 
       // Sign the first accepted payment scheme
       const requirement = challenge.accepts[0]
-      const paymentHeader = await signPayment(requirement)
+      const paymentHeader = await signPayment(requirement ?? null)
 
-      // Retry with payment header
-      const retryResponse = await fetch(url, {
+      return await fetch(url, {
         ...options,
         headers: {
           ...(options.headers || {}),
           'x-payment': paymentHeader,
         },
       })
-
-      return retryResponse
     }
     catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Payment failed'
-      error.value = message
+      error.value = err instanceof Error ? err.message : 'Payment failed'
       throw err
     }
     finally {

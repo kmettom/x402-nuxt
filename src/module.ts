@@ -16,6 +16,12 @@ export interface ModuleOptions {
   protectedRoutes: string[]
   /** Enable or disable the module entirely. @default true */
   enabled: boolean
+  /** EIP-155 network identifier. @default "eip155:84532" (Base Sepolia) */
+  network: string
+  /** Payment amount in the smallest token unit (wei for ETH). @default "100000000000000000" (0.1 ETH) */
+  amount: string
+  /** Wallet address that receives payments. */
+  payTo: string
 }
 
 /**
