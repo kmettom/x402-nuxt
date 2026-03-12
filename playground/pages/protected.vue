@@ -6,8 +6,10 @@ const result = ref<string | null>(null)
 
 async function fetchProtectedData() {
   result.value = null
+  console.log("fetchProtectedData - SUB page");
   try {
     const response = await pay('/api/premium')
+    console.log("fetchProtectedData - SUB page, response", response);
     if (response.ok) {
       const data = await response.json()
       result.value = JSON.stringify(data, null, 2)
@@ -17,6 +19,7 @@ async function fetchProtectedData() {
     }
   }
   catch (err: unknown) {
+    console.log("fetchProtectedData - SUB page - catch err", err);
     const message = err instanceof Error ? err.message : 'Unknown error'
     result.value = `Failed: ${message}`
   }

@@ -44,7 +44,10 @@ export default defineEventHandler(async (event) => {
   // -- Check for x-payment header ---------------------------------------------
   const paymentHeader = getRequestHeader(event, 'x-payment')
 
+  console.log("paymentHeader, ", paymentHeader)
+
   if (!paymentHeader) {
+    console.log("!paymentHeader !!!")
     // Return 402 challenge with payment requirements
     setResponseHeader(event, 'Content-Type', 'application/json')
     event.node.res.statusCode = 402
@@ -69,6 +72,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  console.log("after PaymentHeader")
+
   // -- Verify payment via facilitator -----------------------------------------
   // TODO: Integrate with x402 facilitator service for real payment verification.
   // This placeholder decodes the header and attaches context for downstream handlers.
@@ -88,7 +93,7 @@ export default defineEventHandler(async (event) => {
       body: parsed, // send decoded object directly
     })
 
-    console.log("response", response)
+    console.log("response response x", response)
 
     if (!response.valid) {
       throw createError({
@@ -118,8 +123,8 @@ export default defineEventHandler(async (event) => {
     }
 
   } catch (err: unknown) {
-    if ((err as any).statusCode === 402) throw err // re-throw known 402s
     console.log("err", err)
+    if ((err as any).statusCode === 402) throw err // re-throw known 402s
     const message = err instanceof Error ? err.message : 'Unknown verification error'
     throw createError({
       statusCode: 502,

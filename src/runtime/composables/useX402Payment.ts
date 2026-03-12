@@ -16,7 +16,7 @@ export function useX402Payment() {
   }))
 
 
-  async function signPayment(requirement: PaymentRequirement | null): Promise<string> {
+  async function signPayment(requirement: PaymentRequirement | null): Promise<string|null> {
     if (!requirement) throw new Error('requirement missing.')
     if (!import.meta.client) throw new Error('signPayment can only be called on the client.')
 
@@ -28,7 +28,11 @@ export function useX402Payment() {
       transport: custom(ethereum),
     })
 
-    const [account] = await walletClient.requestAddresses()
+    const [account] = await walletClient.requestAddresses();
+
+    console.log("account", account)
+
+    if(!account) return null;
 
     try {
       await walletClient.switchChain({ id: baseSepolia.id })
@@ -102,8 +106,12 @@ export function useX402Payment() {
 
 
   async function pay(url: string, options: RequestInit = {}): Promise<Response> {
+    console.log("pay url", url, options)
+    console.log("pay options", url, options)
     error.value = null
     const response = await fetch(url, options)
+
+    console.log("pay response", response)
 
     if (response.status !== 402) {
       return response
@@ -113,6 +121,7 @@ export function useX402Payment() {
 
     try {
       const challenge: PaymentChallengeResponse = await response.json()
+      console.log("challenge", challenge)
 
       if (!challenge.accepts?.length) {
         console.log('Server returned 402 but provided no payment requirements.')
@@ -124,7 +133,14 @@ export function useX402Payment() {
 
       // Sign the first accepted payment scheme
       const requirement = challenge.accepts[0]
+      console.log("requirement", requirement)
       const paymentHeader = await signPayment(requirement ?? null)
+
+      console.log("paymentHeader", paymentHeader)
+
+      if(!paymentHeader){
+        throw new Error("Payment header is null")
+      }
 
       return await fetch(url, {
         ...options,

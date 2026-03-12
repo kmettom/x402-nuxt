@@ -6,6 +6,7 @@ const premiumContent = ref<string | null>(null)
 
 async function handleFetchPremium() {
   premiumContent.value = null
+  console.log("handleFetchPremium Index" )
   try {
     const response = await pay('/api/premium')
     if (response.ok) {
