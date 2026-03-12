@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
     event.node.res.statusCode = 402
     event.node.res.statusMessage = 'Payment Required'
 
-    const addressPayTo = getAddress('0xcde753d46195e2c80f43db01c399eed8f79433c6')
+    const addressPayTo = getAddress('0xD8Ae4038D01Ed0E418B3B1f10878502828725150')
     const addressPayer = getAddress('0xcde753d46195e2c80f43db01c399eed8f79433c6')
 
     return {
