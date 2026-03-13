@@ -17,6 +17,7 @@ export function useX402Payment() {
 
 
   async function signPayment(requirement: PaymentRequirement | null): Promise<string|null> {
+    console.log("signPayment")
     if (!requirement) throw new Error('requirement missing.')
     if (!import.meta.client) throw new Error('signPayment can only be called on the client.')
 
@@ -51,8 +52,14 @@ export function useX402Payment() {
     const nonce = crypto.getRandomValues(new Uint8Array(32))
     const nonceHex = ('0x' + Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
 
+    console.log("validAfter", validAfter)
+    console.log("validBefore", validBefore)
+    console.log("nonce", nonce)
+    console.log("nonceHex", nonceHex)
     // USDC contract on Base Sepolia
     const usdcAddress = (requirement.asset ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
+    console.log("usdcAddress", usdcAddress)
+    console.log("requirement.max", requirement.maxAmountRequired)
 
     const signature = await walletClient.signTypedData({
       account,
@@ -83,6 +90,8 @@ export function useX402Payment() {
       },
     })
 
+    console.log("signature", signature)
+
     // Build the payload the facilitator expects
     const paymentData = {
       x402Version: 2,
@@ -101,13 +110,15 @@ export function useX402Payment() {
       },
     }
 
+    console.log("paymentData", paymentData)
+
     return btoa(JSON.stringify(paymentData))
   }
 
 
   async function pay(url: string, options: RequestInit = {}): Promise<Response> {
-    console.log("pay url", url, options)
-    console.log("pay options", url, options)
+    console.log("pay url", url)
+    console.log("pay options",options)
     error.value = null
     const response = await fetch(url, options)
 

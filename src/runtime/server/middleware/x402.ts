@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
     scheme: 'exact',
     network: route.network,
     price: route.price,
+    maxAmountRequired: "100000",
     payTo: getAddress(payTo),
     resource: url.toString(),
     asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // USDC Base Sepolia
