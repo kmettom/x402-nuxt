@@ -68,6 +68,9 @@ declare module 'nuxt/schema' {
     x402: {
       facilitatorUrl: string
       protectedRoutes: string[]
+      payTo:string
+      cdpApiKeyId:string
+      cdpApiKeySecret:string
     }
   }
   interface PublicRuntimeConfig {

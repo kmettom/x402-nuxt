@@ -10,39 +10,27 @@ import {
  * Module options set via `nuxt.config.ts` under the `x402` key.
  */
 export interface ModuleOptions {
-  /** URL of the x402 facilitator service. @default "https://x402.org/facilitator" */
   facilitatorUrl: string
-  /** Array of route path patterns to protect with x402 payment verification. */
   protectedRoutes: string[]
-  /** Enable or disable the module entirely. @default true */
   enabled: boolean
-  /** EIP-155 network identifier. @default "eip155:84532" (Base Sepolia) */
   network: string
-  /** Payment amount in the smallest token unit (wei for ETH). @default "100000000000000000" (0.1 ETH) */
   amount: string
-  /** Wallet address that receives payments. */
   payTo: string
+  routes: string[]
 }
 
-/**
- * nuxt-x402 -- Nuxt 3 module for the x402 HTTP payment protocol.
- *
- * Provides server-side route protection via a Nitro middleware that enforces
- * HTTP 402 payment requirements, and client-side composables for MetaMask
- * wallet connection and payment header construction.
- */
 export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-x402',
     configKey: 'x402',
     compatibility: {
-      nuxt: '>=3.0.0',
+      nuxt: '>=4.0.0',
     },
   },
 
   defaults: {
     enabled: true,
-    facilitatorUrl: 'https://x402.org/facilitator',
+    facilitatorUrl: 'https://api.cdp.coinbase.com/platform/v2/x402',
     protectedRoutes: [],
   },
 
@@ -59,8 +47,12 @@ export default defineNuxtModule<ModuleOptions>({
     // ---------------------
     nuxt.options.runtimeConfig.x402 = {
       facilitatorUrl: options.facilitatorUrl,
-      protectedRoutes: options.protectedRoutes,
+      payTo: options.payTo,                    // ✅ add
+      routes: options.routes,                  // ✅ add (replaces protectedRoutes)
+      cdpApiKeyId: '',                         // ✅ add — filled from runtimeConfig at runtime
+      cdpApiKeySecret: '',                     // ✅ add
     }
+
 
     nuxt.options.runtimeConfig.public.x402 = {
       facilitatorUrl: options.facilitatorUrl,
