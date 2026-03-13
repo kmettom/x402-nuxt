@@ -6,23 +6,14 @@ import {
   createError,
 } from 'h3'
 import {useRuntimeConfig} from '#imports'
-import {getAddress} from "viem";
+import {getAddress} from 'viem'
 
-/**
- * Nitro server middleware that enforces x402 payment requirements.
- *
- * For each incoming request it checks whether the route matches a protected
- * route pattern. If so, it validates the `x-payment` header against the
- * facilitator service and either passes through (valid payment) or returns a
- * 402 Payment Required challenge.
- */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const x402Config = config.x402
 
-  console.log("defineEventHandler")
   if (!x402Config?.protectedRoutes?.length) {
-    return // No routes to protect -- pass through
+    return
   }
 
   const url = getRequestURL(event)
@@ -38,98 +29,127 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!isProtected) {
-    return // Not a protected route -- pass through
+    return
   }
+
+  // -- Shared payment requirements --------------------------------------------
+  const paymentRequirements = {
+    scheme: 'exact',
+    network: 'eip155:84532',
+    price: '$0.01',
+    payTo: getAddress('0xD8Ae4038D01Ed0E418B3B1f10878502828725150'),
+    resource: `${url.origin}${url.pathname}`,
+    description: `Payment required for ${url.pathname}`,
+    mimeType: 'application/json',
+  }
+
+  console.log('[x402] Protected route matched:', pathname)
+  console.log('[x402] paymentRequirements:', JSON.stringify(paymentRequirements, null, 2))
 
   // -- Check for x-payment header ---------------------------------------------
   const paymentHeader = getRequestHeader(event, 'x-payment')
 
-  console.log("paymentHeader, ", paymentHeader)
-
   if (!paymentHeader) {
-    console.log("!paymentHeader !!!")
-    // Return 402 challenge with payment requirements
+    console.log('[x402] No x-payment header — returning 402 challenge')
     setResponseHeader(event, 'Content-Type', 'application/json')
     event.node.res.statusCode = 402
     event.node.res.statusMessage = 'Payment Required'
 
-    const addressPayTo = getAddress('0xD8Ae4038D01Ed0E418B3B1f10878502828725150')
-    const addressPayer = getAddress('0xcde753d46195e2c80f43db01c399eed8f79433c6')
-
     return {
       error: 'Payment required to access this resource.',
-      accepts: [
-        {
-          scheme: 'exact-evm',
-          network: 'eip155:84532', // base sepolia
-          maxAmountRequired: '10000',
-          resource: `${url.origin}${url.pathname}`,
-          description: `Payment required for ${url.pathname}`,
-          payTo: addressPayTo,
-          payer: addressPayer,
-        },
-      ],
+      accepts: [paymentRequirements],
     }
   }
 
-  console.log("after PaymentHeader")
+  console.log('[x402] x-payment header received (raw base64):', paymentHeader)
 
-  // -- Verify payment via facilitator -----------------------------------------
-  // TODO: Integrate with x402 facilitator service for real payment verification.
-  // This placeholder decodes the header and attaches context for downstream handlers.
+  // -- Verify + Settle via facilitator ----------------------------------------
   try {
-    const parsed = JSON.parse(atob(paymentHeader)) // decode base64 → object
-    console.log("parsed", parsed)
-    console.log("x402Config.facilitatorUrl", x402Config.facilitatorUrl)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(atob(paymentHeader))
+      console.log('[x402] Decoded payment payload:', JSON.stringify(parsed, null, 2))
+    } catch (decodeErr) {
+      console.error('[x402] Failed to decode x-payment header:', decodeErr)
+      throw createError({statusCode: 400, statusMessage: 'Invalid x-payment header encoding'})
+    }
 
-    const response = await $fetch<{
-      valid: boolean
-      txHash?: string
-      payer?: string
-      invalidReason?: string
-    }>(`${x402Config.facilitatorUrl}/verify`, {
+    // Step 1: Verify
+    const verifyBody = {paymentPayload: parsed, paymentRequirements: paymentRequirements}
+    console.log('[x402] Sending to /verify:', JSON.stringify(verifyBody, null, 2))
+
+    const verifyResponse = await $fetch(`${x402Config.facilitatorUrl}/verify`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: parsed, // send decoded object directly
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CDP-API-KEY-ID': x402Config.cdpApiKeyId,
+        'X-CDP-API-KEY-SECRET': x402Config.cdpApiKeySecret,
+      },
+      body: verifyBody,
     })
 
-    console.log("response response x", response)
+    console.log('[x402] /verify response:', JSON.stringify(verifyResponse, null, 2))
 
-    if (!response.valid) {
+    if (!verifyResponse.isValid) {
+      console.warn('[x402] Payment invalid:', verifyResponse.invalidReason)
       throw createError({
         statusCode: 402,
         statusMessage: 'Payment Required',
         data: {
           error: 'Payment verification failed.',
-          invalidReason: response.invalidReason,
+          invalidReason: verifyResponse.invalidReason,
         },
       })
     }
 
-    // Attach to context for downstream route handlers
+    // Step 2: Settle
+    const settleBody = {paymentPayload: parsed, paymentRequirements: paymentRequirements}
+    console.log('[x402] Sending to /settle:', JSON.stringify(settleBody, null, 2))
+
+    const settleResponse = await $fetch<{
+      success: boolean
+      txHash?: string
+      error?: string
+    }>(`${x402Config.facilitatorUrl}/settle`, {
+      method: 'POST',
+      body: settleBody,
+    }).catch((err) => {
+      console.error('[x402] /settle HTTP error:', err?.response?.status, err?.data ?? err?.message)
+      throw err
+    })
+
+    console.log('[x402] /settle response:', JSON.stringify(settleResponse, null, 2))
+
+    if (!settleResponse.success) {
+      console.warn('[x402] Settlement failed:', settleResponse.error)
+      throw createError({
+        statusCode: 402,
+        statusMessage: 'Payment settlement failed',
+        data: {error: settleResponse.error},
+      })
+    }
+
     event.context.x402 = {
       valid: true,
-      scheme: 'exact-evm',
-      txHash: response.txHash,
-      payer: response.payer,
+      scheme: 'exact',
+      txHash: settleResponse.txHash,
+      payer: (parsed as any)?.payload?.authorization?.from,
     }
 
-    // Attach receipt header for client confirmation
-    if (response.txHash) {
-      setResponseHeader(event, 'X-PAYMENT-RESPONSE', JSON.stringify({
-        success: true,
-        txHash: response.txHash,
-      }))
-    }
+    console.log('[x402] Payment settled successfully. txHash:', settleResponse.txHash)
+
+    setResponseHeader(event, 'X-PAYMENT-RESPONSE', JSON.stringify({
+      success: true,
+      txHash: settleResponse.txHash,
+    }))
 
   } catch (err: unknown) {
-    console.log("err", err)
-    if ((err as any).statusCode === 402) throw err // re-throw known 402s
+    if ((err as any).statusCode === 402) throw err
     const message = err instanceof Error ? err.message : 'Unknown verification error'
+    console.error('[x402] Unhandled error:', err)
     throw createError({
       statusCode: 502,
       statusMessage: `x402: Facilitator verification failed -- ${message}`,
     })
   }
-
 })

@@ -52,7 +52,7 @@ export function useX402Payment() {
     const nonceHex = ('0x' + Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
 
     // USDC contract on Base Sepolia
-    const usdcAddress = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}`
+    const usdcAddress = (requirement.asset ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
 
     const signature = await walletClient.signTypedData({
       account,
@@ -85,8 +85,8 @@ export function useX402Payment() {
 
     // Build the payload the facilitator expects
     const paymentData = {
-      x402Version: 1,
-      scheme: 'exact-evm',
+      x402Version: 2,
+      scheme: 'exact',
       network: requirement.network,
       payload: {
         signature,

@@ -1,3 +1,5 @@
+import {process} from "std-env";
+
 /**
  * Nuxt config for @nuxt/module-builder.
  * Used during `build` and `prepare` scripts.
@@ -6,9 +8,10 @@ export default defineNuxtConfig({
   modules: ['./src/module'],
 
   x402: {
-    enabled: true,
-    facilitatorUrl: 'https://x402.org/facilitator',
-    protectedRoutes: [],
+    facilitatorUrl: 'https://api.cdp.coinbase.com/platform/v2/x402',
+    cdpApiKeyId: process.env.CDP_API_KEY_ID,
+    cdpApiKeySecret: process.env.CDP_API_KEY_SECRET,
+    protectedRoutes: ['/api/premium'],
   },
 
   devtools: { enabled: true },

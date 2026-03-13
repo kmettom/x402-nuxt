@@ -6,20 +6,15 @@
 
 /** A single payment scheme option returned in the 402 challenge. */
 export interface PaymentRequirement {
-  /** Payment scheme identifier, e.g. "exact-evm". */
   scheme: string
-  /** EIP-155 network identifier, e.g. "eip155:8453". */
   network: string
-  /** Price in smallest token unit as a decimal string. */
   maxAmountRequired: string
-  /** Full resource URL that the payment unlocks. */
   resource: string
-  /** Human-readable description. */
-  description: string
-  /** Address receiving payment. */
+  description?: string
   payTo: string
-  /** Additional scheme-specific data (e.g. token contract, deadline). */
-  extra?: Record<string, unknown>
+  asset?: string             // ✅ add this
+  maxTimeoutSeconds?: number
+  extra?: { name: string; version: string }
 }
 
 /** Shape of the 402 challenge response body. */
