@@ -11,9 +11,14 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const { facilitatorUrl, payTo, cdpApiKeyId, cdpApiKeySecret } = config.x402 ?? {}
 
+  console.log("config", config)
+
   const url = getRequestURL(event)
   const routeKey = `${event.method} ${url.pathname}`
   const route = ROUTES[routeKey]
+
+  console.log("url", url)
+
   if (!route) return
 
   const paymentRequirements = {
@@ -36,6 +41,12 @@ export default defineEventHandler(async (event) => {
     return { error: 'Payment required.', accepts: [paymentRequirements] }
   }
 
+  console.log("cdpApiKeyId", cdpApiKeyId)
+  console.log("cdpApiKeySecret", cdpApiKeySecret)
+
+  // console.log('cdpApiKeyIdTest', cdpApiKeyIdTest)
+  // console.log('cdpApiKeySecretTest', cdpApiKeySecretTest)
+
   // Build auth headers — empty if using x402.org testnet (no key needed)
   const authHeaders: Record<string, string> = cdpApiKeyId ? {
     'X-CDP-API-KEY-ID': cdpApiKeyId,
@@ -48,6 +59,8 @@ export default defineEventHandler(async (event) => {
   } catch {
     throw createError({ statusCode: 400, statusMessage: 'Invalid x-payment encoding' })
   }
+
+  console.log("authHeaders", authHeaders)
 
   // Step 1: Verify
   const verifyResponse = await $fetch<{ isValid: boolean; invalidReason?: string }>(

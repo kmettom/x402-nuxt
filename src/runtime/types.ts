@@ -69,6 +69,7 @@ declare module 'nuxt/schema' {
       facilitatorUrl: string
       protectedRoutes: string[]
       payTo:string
+      // routes:string[]
       cdpApiKeyId:string
       cdpApiKeySecret:string
     }

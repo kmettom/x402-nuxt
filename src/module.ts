@@ -16,7 +16,9 @@ export interface ModuleOptions {
   network: string
   amount: string
   payTo: string
-  routes: string[]
+  cdpApiKeySecret: string
+  cdpApiKeyId: string
+  // routes: string[]
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -47,10 +49,10 @@ export default defineNuxtModule<ModuleOptions>({
     // ---------------------
     nuxt.options.runtimeConfig.x402 = {
       facilitatorUrl: options.facilitatorUrl,
-      payTo: options.payTo,                    // ✅ add
-      routes: options.routes,                  // ✅ add (replaces protectedRoutes)
-      cdpApiKeyId: '',                         // ✅ add — filled from runtimeConfig at runtime
-      cdpApiKeySecret: '',                     // ✅ add
+      payTo: options.payTo,
+      protectedRoutes: options.protectedRoutes,
+      cdpApiKeyId: process.env.CDP_API_KEY_ID ?? 'x',
+      cdpApiKeySecret: process.env.CDP_API_KEY_SECRET ?? 'x',
     }
 
 
