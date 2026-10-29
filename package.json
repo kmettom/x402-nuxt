@@ -1,6 +1,6 @@
 {
   "name": "nuxt-x402",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Nuxt 3 module for x402 HTTP payment protocol — server-side route protection and client-side wallet integration",
   "license": "MIT",
   "type": "module",
