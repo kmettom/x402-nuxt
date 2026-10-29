@@ -1,3 +1,4 @@
+import type { X402RouteConfig } from './runtime/types'
 import {
   defineNuxtModule,
   addPlugin,
@@ -10,18 +11,18 @@ import {
  * Module options set via `nuxt.config.ts` under the `x402` key.
  */
 export interface ModuleOptions {
+  /** Facilitator base URL used for /verify and /settle. Defaults to the Coinbase CDP facilitator. */
   facilitatorUrl: string
-  protectedRoutes: string[]
+  /** Set to false to disable the module. */
   enabled: boolean
-  network: string
-  amount: string
+  /** Paid routes, keyed by "METHOD /path", e.g. `'GET /api/premium': { price: '$0.001' }`. */
+  routes: Record<string, X402RouteConfig>
   /** Address that receives payments. Falls back to X402_PAY_TO. */
   payTo?: string
   /** CDP API key secret (PEM EC or base64 Ed25519). Falls back to CDP_API_KEY_SECRET. */
   cdpApiKeySecret?: string
   /** CDP API key id. Falls back to CDP_API_KEY_ID. */
   cdpApiKeyId?: string
-  // routes: string[]
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -36,7 +37,7 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     enabled: true,
     facilitatorUrl: 'https://api.cdp.coinbase.com/platform/v2/x402',
-    protectedRoutes: [],
+    routes: {},
   },
 
   setup(options, nuxt) {
@@ -53,7 +54,7 @@ export default defineNuxtModule<ModuleOptions>({
     nuxt.options.runtimeConfig.x402 = {
       facilitatorUrl: options.facilitatorUrl,
       payTo: options.payTo ?? process.env.X402_PAY_TO ?? '',
-      protectedRoutes: options.protectedRoutes,
+      routes: options.routes,
       // Empty means no auth headers are sent (e.g. x402.org testnet facilitator)
       cdpApiKeyId: options.cdpApiKeyId ?? process.env.CDP_API_KEY_ID ?? '',
       cdpApiKeySecret: options.cdpApiKeySecret ?? process.env.CDP_API_KEY_SECRET ?? '',

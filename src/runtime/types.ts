@@ -2,6 +2,21 @@
  * Shared types for the nuxt-x402 module.
  */
 
+// -- Module config --------------------------------------------------------------
+
+/** Networks the module knows the USDC contract for. */
+export type X402Network = 'eip155:84532' | 'eip155:8453'
+
+/** Pricing for one paid route. */
+export interface X402RouteConfig {
+  /** USD price paid in USDC, e.g. "$0.001". */
+  price: string
+  /** CAIP-2 network: Base Sepolia (default) or Base mainnet. */
+  network?: X402Network
+  /** Shown to the client in the 402 challenge. */
+  description?: string
+}
+
 // -- Payment protocol types ---------------------------------------------------
 
 /** The protected resource described in a 402 challenge (x402 v2). */
@@ -105,9 +120,8 @@ declare module 'nuxt/schema' {
   interface RuntimeConfig {
     x402: {
       facilitatorUrl: string
-      protectedRoutes: string[]
+      routes: Record<string, X402RouteConfig>
       payTo:string
-      // routes:string[]
       cdpApiKeyId:string
       cdpApiKeySecret:string
     }

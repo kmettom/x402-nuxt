@@ -2,24 +2,26 @@
 import { defineEventHandler, getRequestHeader, setResponseHeader, setResponseStatus, getRequestURL, createError } from 'h3'
 import { getAddress, parseUnits } from 'viem'
 import { useRuntimeConfig } from '#imports'
-import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse } from '../../types'
+import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse, X402Network } from '../../types'
 import { cdpAuthHeaders } from '../utils/cdpAuth'
 
 const X402_VERSION = 2
 
-const ROUTES: Record<string, { price: string; network: string; description?: string }> = {
-  'GET /api/premium': { price: '$0.001', network: 'eip155:84532', description: 'Premium content' },
+// USDC contract and its EIP-712 domain per network
+const USDC: Record<X402Network, { address: string; name: string; version: string }> = {
+  'eip155:84532': { address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC', version: '2' },
+  'eip155:8453': { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2' },
 }
 
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64')
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-  const { facilitatorUrl, payTo, cdpApiKeyId, cdpApiKeySecret } = config.x402 ?? {}
+  const { facilitatorUrl, payTo, routes, cdpApiKeyId, cdpApiKeySecret } = config.x402 ?? {}
 
   const url = getRequestURL(event)
   const routeKey = `${event.method} ${url.pathname}`
-  const route = ROUTES[routeKey]
+  const route = routes?.[routeKey]
 
   if (!route) return
 
@@ -27,16 +29,22 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'x402 payTo address not configured', message: 'Set X402_PAY_TO in .env or x402.payTo in nuxt.config.' })
   }
 
+  const network = route.network ?? 'eip155:84532'
+  const usdc = USDC[network]
+  if (!usdc) {
+    throw createError({ statusCode: 500, statusMessage: 'x402 network not supported', message: `Unsupported network "${network}" for ${routeKey}.` })
+  }
+
   const paymentRequirements: PaymentRequirement = {
     scheme: 'exact',
-    network: route.network,
+    network,
     // USDC has 6 decimals: $0.001 -> "1000"
     amount: parseUnits(route.price.replace('$', ''), 6).toString(),
-    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // USDC Base Sepolia
+    asset: usdc.address,
     payTo: getAddress(payTo),
     maxTimeoutSeconds: 300,
     // EIP-712 domain of the USDC contract
-    extra: { name: 'USDC', version: '2' },
+    extra: { name: usdc.name, version: usdc.version },
   }
 
   const paymentRequired: PaymentRequired = {
