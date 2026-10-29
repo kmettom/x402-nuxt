@@ -1,28 +1,13 @@
 <script setup lang="ts">
 const { wallet, connect } = useWallet()
-const { isPaying, error, pay } = useX402Payment()
+const { isPaying, error, unlock } = usePremiumAccess()
 
 const result = ref<string | null>(null)
 
 async function fetchProtectedData() {
   result.value = null
-  console.log("fetchProtectedData - SUB page");
-  try {
-    const response = await pay('/api/premium')
-    console.log("fetchProtectedData - SUB page, response", response);
-    if (response.ok) {
-      const data = await response.json()
-      result.value = JSON.stringify(data, null, 2)
-    }
-    else {
-      result.value = `Error: ${response.status} ${response.statusText}`
-    }
-  }
-  catch (err: unknown) {
-    console.log("fetchProtectedData - SUB page - catch err", err);
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    result.value = `Failed: ${message}`
-  }
+  // Redirects to /premium on success
+  result.value = await unlock()
 }
 </script>
 
@@ -44,7 +29,7 @@ async function fetchProtectedData() {
     <div v-else style="margin: 2rem 0;">
       <p>Wallet: <code>{{ wallet.address }}</code></p>
       <button :disabled="isPaying" @click="fetchProtectedData">
-        {{ isPaying ? 'Signing payment...' : 'Access Protected Data' }}
+        {{ isPaying ? 'Signing payment...' : 'Pay to open premium page' }}
       </button>
     </div>
 
