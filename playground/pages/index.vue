@@ -1,26 +1,13 @@
 <script setup lang="ts">
 const { wallet, connect, disconnect } = useWallet()
-const { isPaying, error, pay } = useX402Payment()
+const { isPaying, error, unlock } = usePremiumAccess()
 
 const premiumContent = ref<string | null>(null)
 
 async function handleFetchPremium() {
   premiumContent.value = null
-  console.log("handleFetchPremium Index" )
-  try {
-    const response = await pay('/api/premium')
-    if (response.ok) {
-      const data = await response.json()
-      premiumContent.value = JSON.stringify(data, null, 2)
-    }
-    else {
-      premiumContent.value = `Error: ${response.status} ${response.statusText}`
-    }
-  }
-  catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    premiumContent.value = `Payment error: ${message}`
-  }
+  // Redirects to /premium on success
+  premiumContent.value = await unlock()
 }
 </script>
 
@@ -50,7 +37,7 @@ async function handleFetchPremium() {
     <section style="margin: 2rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">
       <h2>Premium Content (402 Protected)</h2>
       <button :disabled="isPaying" @click="handleFetchPremium">
-        {{ isPaying ? 'Processing payment...' : 'Fetch /api/premium' }}
+        {{ isPaying ? 'Processing payment...' : 'Unlock premium page' }}
       </button>
       <p v-if="error" style="color: red;">
         {{ error }}

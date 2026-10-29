@@ -4,25 +4,63 @@
 
 // -- Payment protocol types ---------------------------------------------------
 
-/** A single payment scheme option returned in the 402 challenge. */
-export interface PaymentRequirement {
-  scheme: string
-  network: string
-  maxAmountRequired: string
-  resource: string
+/** The protected resource described in a 402 challenge (x402 v2). */
+export interface ResourceInfo {
+  url: string
   description?: string
-  payTo: string
-  asset?: string             // ✅ add this
-  maxTimeoutSeconds?: number
-  extra?: { name: string; version: string }
+  mimeType?: string
 }
 
-/** Shape of the 402 challenge response body. */
-export interface PaymentChallengeResponse {
-  /** Payment requirements the client can choose from. */
-  accepts: PaymentRequirement[]
+/** A single payment scheme option returned in the 402 challenge (x402 v2). */
+export interface PaymentRequirement {
+  scheme: string
+  /** CAIP-2 network id, e.g. "eip155:84532". */
+  network: string
+  /** Amount in the asset's atomic units (USDC: 6 decimals). */
+  amount: string
+  asset: string
+  payTo: string
+  maxTimeoutSeconds: number
+  /** Scheme specific data; for EVM "exact" the token's EIP-712 domain name/version. */
+  extra: Record<string, unknown>
+}
+
+/** 402 challenge, sent base64-encoded in the `PAYMENT-REQUIRED` header (and as the body). */
+export interface PaymentRequired {
+  x402Version: number
   /** Optional human-readable error message. */
   error?: string
+  resource: ResourceInfo
+  /** Payment requirements the client can choose from. */
+  accepts: PaymentRequirement[]
+  extensions?: Record<string, unknown>
+}
+
+/** Signed payment, sent base64-encoded in the `PAYMENT-SIGNATURE` header. */
+export interface PaymentPayload {
+  x402Version: number
+  resource?: ResourceInfo
+  /** The requirement from `accepts` the client chose to pay. */
+  accepted: PaymentRequirement
+  payload: Record<string, unknown>
+  extensions?: Record<string, unknown>
+}
+
+/** Facilitator `/verify` response. */
+export interface VerifyResponse {
+  isValid: boolean
+  invalidReason?: string
+  invalidMessage?: string
+  payer?: string
+}
+
+/** Facilitator `/settle` response, returned base64-encoded in the `PAYMENT-RESPONSE` header. */
+export interface SettleResponse {
+  success: boolean
+  errorReason?: string
+  payer?: string
+  transaction: string
+  network: string
 }
 
 /** Decoded and verified payment result attached to `event.context.x402`. */

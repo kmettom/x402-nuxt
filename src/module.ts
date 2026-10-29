@@ -15,9 +15,12 @@ export interface ModuleOptions {
   enabled: boolean
   network: string
   amount: string
-  payTo: string
-  cdpApiKeySecret: string
-  cdpApiKeyId: string
+  /** Address that receives payments. Falls back to X402_PAY_TO. */
+  payTo?: string
+  /** CDP API key secret (PEM EC or base64 Ed25519). Falls back to CDP_API_KEY_SECRET. */
+  cdpApiKeySecret?: string
+  /** CDP API key id. Falls back to CDP_API_KEY_ID. */
+  cdpApiKeyId?: string
   // routes: string[]
 }
 
@@ -49,12 +52,20 @@ export default defineNuxtModule<ModuleOptions>({
     // ---------------------
     nuxt.options.runtimeConfig.x402 = {
       facilitatorUrl: options.facilitatorUrl,
-      payTo: options.payTo,
+      payTo: options.payTo ?? process.env.X402_PAY_TO ?? '',
       protectedRoutes: options.protectedRoutes,
-      cdpApiKeyId: process.env.CDP_API_KEY_ID ?? 'x',
-      cdpApiKeySecret: process.env.CDP_API_KEY_SECRET ?? 'x',
+      // Empty means no auth headers are sent (e.g. x402.org testnet facilitator)
+      cdpApiKeyId: options.cdpApiKeyId ?? process.env.CDP_API_KEY_ID ?? '',
+      cdpApiKeySecret: options.cdpApiKeySecret ?? process.env.CDP_API_KEY_SECRET ?? '',
     }
 
+    if (!nuxt.options.runtimeConfig.x402.payTo) {
+      console.warn('[nuxt-x402] No payTo address configured; set X402_PAY_TO or x402.payTo. Protected routes will fail.')
+    }
+
+    if (options.facilitatorUrl.includes('api.cdp.coinbase.com') && !nuxt.options.runtimeConfig.x402.cdpApiKeyId) {
+      console.warn('[nuxt-x402] CDP facilitator configured without CDP_API_KEY_ID / CDP_API_KEY_SECRET; requests will be rejected with 401.')
+    }
 
     nuxt.options.runtimeConfig.public.x402 = {
       facilitatorUrl: options.facilitatorUrl,
