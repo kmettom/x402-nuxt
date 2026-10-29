@@ -18,16 +18,16 @@ export default defineNuxtPlugin((_nuxtApp) => {
     if (ethereum?.on) {
       ethereum.on('accountsChanged', (accounts: unknown) => {
         if (Array.isArray(accounts) && accounts.length === 0) {
-          console.info('[nuxt-x402] Wallet disconnected via MetaMask.')
+          console.info('[x402-nuxt] Wallet disconnected via MetaMask.')
         }
       })
 
       ethereum.on('chainChanged', (_chainId: unknown) => {
-        console.info('[nuxt-x402] Chain changed. You may need to refresh.')
+        console.info('[x402-nuxt] Chain changed. You may need to refresh.')
       })
     }
     else {
-      console.info('[nuxt-x402] MetaMask not detected. Wallet features will be unavailable.')
+      console.info('[x402-nuxt] MetaMask not detected. Wallet features will be unavailable.')
     }
   }
 

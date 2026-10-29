@@ -1,5 +1,5 @@
 /**
- * Shared types for the nuxt-x402 module.
+ * Shared types for the x402-nuxt module.
  */
 
 // -- Module config --------------------------------------------------------------

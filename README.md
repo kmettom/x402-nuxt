@@ -1,4 +1,4 @@
-# nuxt-x402
+# x402-nuxt
 
 Nuxt module for [x402](https://docs.x402.org) — paid API routes using the HTTP `402 Payment Required` status code.
 
@@ -10,13 +10,13 @@ Implements x402 v2 (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE
 ## Install
 
 ```bash
-npm install nuxt-x402
+npm install x402-nuxt
 ```
 
 ```ts
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['nuxt-x402'],
+  modules: ['x402-nuxt'],
 
   x402: {
     routes: {

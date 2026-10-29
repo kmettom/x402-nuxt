@@ -13,7 +13,7 @@ async function handleFetchPremium() {
 
 <template>
   <div style="max-width: 640px; margin: 2rem auto; font-family: system-ui, sans-serif;">
-    <h1>nuxt-x402 Playground</h1>
+    <h1>x402-nuxt Playground</h1>
     <p>Test the x402 payment protocol integration.</p>
 
     <section style="margin: 2rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">

@@ -4,7 +4,7 @@
  */
 export default defineEventHandler(() => {
   return {
-    message: 'Hello from nuxt-x402 playground!',
+    message: 'Hello from x402-nuxt playground!',
     timestamp: new Date().toISOString(),
     protected: false,
   }

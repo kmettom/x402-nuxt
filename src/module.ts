@@ -27,7 +27,7 @@ export interface ModuleOptions {
 
 export default defineNuxtModule<ModuleOptions>({
   meta: {
-    name: 'nuxt-x402',
+    name: 'x402-nuxt',
     configKey: 'x402',
     compatibility: {
       nuxt: '>=4.0.0',
@@ -61,11 +61,11 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     if (!nuxt.options.runtimeConfig.x402.payTo) {
-      console.warn('[nuxt-x402] No payTo address configured; set X402_PAY_TO or x402.payTo. Protected routes will fail.')
+      console.warn('[x402-nuxt] No payTo address configured; set X402_PAY_TO or x402.payTo. Protected routes will fail.')
     }
 
     if (options.facilitatorUrl.includes('api.cdp.coinbase.com') && !nuxt.options.runtimeConfig.x402.cdpApiKeyId) {
-      console.warn('[nuxt-x402] CDP facilitator configured without CDP_API_KEY_ID / CDP_API_KEY_SECRET; requests will be rejected with 401.')
+      console.warn('[x402-nuxt] CDP facilitator configured without CDP_API_KEY_ID / CDP_API_KEY_SECRET; requests will be rejected with 401.')
     }
 
     nuxt.options.runtimeConfig.public.x402 = {
