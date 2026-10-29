@@ -41,8 +41,12 @@ export default defineEventHandler(async (event) => {
     return { error: 'Payment required.', accepts: [paymentRequirements] }
   }
 
+
   console.log("cdpApiKeyId", cdpApiKeyId)
   console.log("cdpApiKeySecret", cdpApiKeySecret)
+
+  // https://docs.cdp.coinbase.com/api-reference/v2/rest-api/x402-facilitator/verify-a-payment
+  //   https://docs.cdp.coinbase.com/api-reference/v2/rest-api/x402-facilitator/verify-a-payment
 
   // console.log('cdpApiKeyIdTest', cdpApiKeyIdTest)
   // console.log('cdpApiKeySecretTest', cdpApiKeySecretTest)
