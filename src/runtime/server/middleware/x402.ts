@@ -1,106 +1,116 @@
 // server/middleware/x402.ts
-import { defineEventHandler, getRequestHeader, setResponseHeader, getRequestURL, createError } from 'h3'
-import { getAddress } from 'viem'
+import { defineEventHandler, getRequestHeader, setResponseHeader, setResponseStatus, getRequestURL, createError } from 'h3'
+import { getAddress, parseUnits } from 'viem'
 import { useRuntimeConfig } from '#imports'
+import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse } from '../../types'
+import { cdpAuthHeaders } from '../utils/cdpAuth'
 
-const ROUTES: Record<string, { price: string; network: string }> = {
-  'GET /api/premium': { price: '$0.001', network: 'eip155:84532' },
+const X402_VERSION = 2
+
+const ROUTES: Record<string, { price: string; network: string; description?: string }> = {
+  'GET /api/premium': { price: '$0.001', network: 'eip155:84532', description: 'Premium content' },
 }
+
+const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64')
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const { facilitatorUrl, payTo, cdpApiKeyId, cdpApiKeySecret } = config.x402 ?? {}
 
-  console.log("config", config)
-
   const url = getRequestURL(event)
   const routeKey = `${event.method} ${url.pathname}`
   const route = ROUTES[routeKey]
 
-  console.log("url", url)
-
   if (!route) return
 
-  const paymentRequirements = {
+  const paymentRequirements: PaymentRequirement = {
     scheme: 'exact',
     network: route.network,
-    price: route.price,
-    maxAmountRequired: "100000",
-    payTo: getAddress(payTo),
-    resource: url.toString(),
+    // USDC has 6 decimals: $0.001 -> "1000"
+    amount: parseUnits(route.price.replace('$', ''), 6).toString(),
     asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // USDC Base Sepolia
+    payTo: getAddress(payTo),
     maxTimeoutSeconds: 300,
+    // EIP-712 domain of the USDC contract
     extra: { name: 'USDC', version: '2' },
   }
 
-  const paymentHeader = getRequestHeader(event, 'x-payment')
+  const paymentRequired: PaymentRequired = {
+    x402Version: X402_VERSION,
+    resource: { url: url.toString(), description: route.description, mimeType: 'application/json' },
+    accepts: [paymentRequirements],
+  }
+
+  const paymentHeader = getRequestHeader(event, 'payment-signature')
 
   if (!paymentHeader) {
-    event.node.res.statusCode = 402
-    setResponseHeader(event, 'Content-Type', 'application/json')
-    return { error: 'Payment required.', accepts: [paymentRequirements] }
+    const body = { ...paymentRequired, error: 'Payment required.' }
+    setResponseStatus(event, 402)
+    setResponseHeader(event, 'PAYMENT-REQUIRED', encode(body))
+    return body
   }
 
-  console.log("cdpApiKeyId", cdpApiKeyId)
-  console.log("cdpApiKeySecret", cdpApiKeySecret)
-
-  // console.log('cdpApiKeyIdTest', cdpApiKeyIdTest)
-  // console.log('cdpApiKeySecretTest', cdpApiKeySecretTest)
-
-  // Build auth headers — empty if using x402.org testnet (no key needed)
-  const authHeaders: Record<string, string> = cdpApiKeyId ? {
-    'X-CDP-API-KEY-ID': cdpApiKeyId,
-    'X-CDP-API-KEY-SECRET': cdpApiKeySecret,
-  } : {}
-
-  let parsed: unknown
+  let paymentPayload: PaymentPayload
   try {
-    parsed = JSON.parse(atob(paymentHeader))
+    paymentPayload = JSON.parse(Buffer.from(paymentHeader, 'base64').toString('utf8'))
   } catch {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid x-payment encoding' })
+    throw createError({ statusCode: 400, statusMessage: 'Invalid PAYMENT-SIGNATURE encoding' })
   }
 
-  console.log("authHeaders", authHeaders)
+  const facilitatorBody = { x402Version: X402_VERSION, paymentPayload, paymentRequirements }
+
+  const authHeaders = (url: string) => {
+    try {
+      return cdpAuthHeaders(cdpApiKeyId, cdpApiKeySecret, 'POST', url)
+    } catch (err) {
+      console.error('[x402] could not sign CDP request', err)
+      throw createError({ statusCode: 500, statusMessage: 'Facilitator auth misconfigured', message: (err as Error).message })
+    }
+  }
 
   // Step 1: Verify
-  const verifyResponse = await $fetch<{ isValid: boolean; invalidReason?: string }>(
-    `${facilitatorUrl}/verify`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
-      body: { paymentPayload: parsed, paymentRequirements },
-    }
-  ).catch((err) => {
-    throw createError({ statusCode: 502, statusMessage: `Facilitator verify failed: ${err?.data?.error ?? err.message}` })
+  const verifyUrl = `${facilitatorUrl}/verify`
+  const verifyResponse = await $fetch<VerifyResponse>(verifyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(verifyUrl) },
+    body: facilitatorBody,
+  }).catch((err) => {
+    // Facilitators answer an invalid payment with a 4xx that still carries a VerifyResponse
+    if (err?.data && typeof err.data === 'object' && 'isValid' in err.data) return err.data as VerifyResponse
+    console.error('[x402] verify failed', err?.status, err?.data)
+    throw createError({ statusCode: 502, statusMessage: 'Facilitator verify failed', message: `Facilitator verify failed (${err?.status}): ${facilitatorError(err)}` })
   })
 
   if (!verifyResponse.isValid) {
-    throw createError({ statusCode: 402, data: { invalidReason: verifyResponse.invalidReason } })
+    throw createError({ statusCode: 402, statusMessage: 'Payment invalid', data: { invalidReason: verifyResponse.invalidReason, invalidMessage: verifyResponse.invalidMessage } })
   }
 
   // Step 2: Settle
-  const settleResponse = await $fetch<{ success: boolean; txHash?: string; error?: string }>(
-    `${facilitatorUrl}/settle`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
-      body: { paymentPayload: parsed, paymentRequirements },
-    }
-  ).catch((err) => {
-    throw createError({ statusCode: 502, statusMessage: `Facilitator settle failed: ${err?.data?.error ?? err.message}` })
+  const settleUrl = `${facilitatorUrl}/settle`
+  const settleResponse = await $fetch<SettleResponse>(settleUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(settleUrl) },
+    body: facilitatorBody,
+  }).catch((err) => {
+    if (err?.data && typeof err.data === 'object' && 'success' in err.data) return err.data as SettleResponse
+    console.error('[x402] settle failed', err?.status, err?.data)
+    throw createError({ statusCode: 502, statusMessage: 'Facilitator settle failed', message: `Facilitator settle failed (${err?.status}): ${facilitatorError(err)}` })
   })
 
   if (!settleResponse.success) {
-    throw createError({ statusCode: 402, data: { error: settleResponse.error } })
+    throw createError({ statusCode: 402, statusMessage: 'Payment settlement failed', data: { errorReason: settleResponse.errorReason } })
   }
 
   event.context.x402 = {
-    txHash: settleResponse.txHash,
-    payer: (parsed as any)?.payload?.authorization?.from,
+    txHash: settleResponse.transaction,
+    payer: settleResponse.payer ?? verifyResponse.payer,
   }
 
-  setResponseHeader(event, 'X-PAYMENT-RESPONSE', JSON.stringify({
-    success: true,
-    txHash: settleResponse.txHash,
-  }))
+  setResponseHeader(event, 'PAYMENT-RESPONSE', encode(settleResponse))
 })
+
+function facilitatorError(err: any): string {
+  const data = err?.data
+  if (typeof data === 'string') return data
+  return data?.errorMessage ?? data?.error ?? err?.message ?? 'unknown error'
+}

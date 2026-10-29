@@ -1,7 +1,7 @@
 import {ref} from 'vue'
 import {useState} from '#imports'
-import type {EIP1193Provider, PaymentChallengeResponse, PaymentRequirement, WalletState} from '../types'
-import { createWalletClient, custom, parseUnits } from 'viem'
+import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState} from '../types'
+import { createWalletClient, custom, getAddress } from 'viem'
 import { baseSepolia } from 'viem/chains'
 
 export function useX402Payment() {
@@ -16,13 +16,15 @@ export function useX402Payment() {
   }))
 
 
-  async function signPayment(requirement: PaymentRequirement | null): Promise<string|null> {
-    console.log("signPayment")
-    if (!requirement) throw new Error('requirement missing.')
+  async function signPayment(paymentRequired: PaymentRequired, requirement: PaymentRequirement): Promise<string|null> {
     if (!import.meta.client) throw new Error('signPayment can only be called on the client.')
 
     const ethereum = (window as unknown as { ethereum?: EIP1193Provider }).ethereum
     if (!ethereum) throw new Error('MetaMask not available.')
+
+    // Network is CAIP-2, e.g. "eip155:84532"
+    const chainId = Number(requirement.network.split(':')[1])
+    if (chainId !== baseSepolia.id) throw new Error(`Unsupported network: ${requirement.network}`)
 
     const walletClient = createWalletClient({
       chain: baseSepolia,
@@ -30,8 +32,6 @@ export function useX402Payment() {
     })
 
     const [account] = await walletClient.requestAddresses();
-
-    console.log("account", account)
 
     if(!account) return null;
 
@@ -48,26 +48,18 @@ export function useX402Payment() {
     }
 
     const validAfter = BigInt(0)
-    const validBefore = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 min window
+    const validBefore = BigInt(Math.floor(Date.now() / 1000) + requirement.maxTimeoutSeconds)
     const nonce = crypto.getRandomValues(new Uint8Array(32))
     const nonceHex = ('0x' + Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
-
-    console.log("validAfter", validAfter)
-    console.log("validBefore", validBefore)
-    console.log("nonce", nonce)
-    console.log("nonceHex", nonceHex)
-    // USDC contract on Base Sepolia
-    const usdcAddress = (requirement.asset ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
-    console.log("usdcAddress", usdcAddress)
-    console.log("requirement.max", requirement.maxAmountRequired)
+    const payTo = getAddress(requirement.payTo)
 
     const signature = await walletClient.signTypedData({
       account,
       domain: {
-        name: 'USDC',
-        version: '2',
-        chainId: 84532,
-        verifyingContract: usdcAddress,
+        name: requirement.extra.name as string,
+        version: requirement.extra.version as string,
+        chainId,
+        verifyingContract: getAddress(requirement.asset),
       },
       types: {
         TransferWithAuthorization: [
@@ -82,27 +74,25 @@ export function useX402Payment() {
       primaryType: 'TransferWithAuthorization',
       message: {
         from:        account,
-        to:          requirement.payTo as `0x${string}`,
-        value:       BigInt(requirement.maxAmountRequired),
+        to:          payTo,
+        value:       BigInt(requirement.amount),
         validAfter,
         validBefore,
         nonce:       nonceHex,
       },
     })
 
-    console.log("signature", signature)
-
-    // Build the payload the facilitator expects
-    const paymentData = {
+    // x402 v2 PaymentPayload: echoes the chosen requirement in `accepted`
+    const paymentPayload: PaymentPayload = {
       x402Version: 2,
-      scheme: 'exact',
-      network: requirement.network,
+      resource: paymentRequired.resource,
+      accepted: requirement,
       payload: {
         signature,
         authorization: {
           from:        account,
-          to:          requirement.payTo,
-          value:       requirement.maxAmountRequired,
+          to:          payTo,
+          value:       requirement.amount,
           validAfter:  validAfter.toString(),
           validBefore: validBefore.toString(),
           nonce:       nonceHex,
@@ -110,19 +100,20 @@ export function useX402Payment() {
       },
     }
 
-    console.log("paymentData", paymentData)
+    return btoa(JSON.stringify(paymentPayload))
+  }
 
-    return btoa(JSON.stringify(paymentData))
+
+  async function readPaymentRequired(response: Response): Promise<PaymentRequired> {
+    const header = response.headers.get('PAYMENT-REQUIRED')
+    if (header) return JSON.parse(atob(header))
+    return await response.json()
   }
 
 
   async function pay(url: string, options: RequestInit = {}): Promise<Response> {
-    console.log("pay url", url)
-    console.log("pay options",options)
     error.value = null
     const response = await fetch(url, options)
-
-    console.log("pay response", response)
 
     if (response.status !== 402) {
       return response
@@ -131,11 +122,10 @@ export function useX402Payment() {
     isPaying.value = true
 
     try {
-      const challenge: PaymentChallengeResponse = await response.json()
-      console.log("challenge", challenge)
+      const paymentRequired = await readPaymentRequired(response)
 
-      if (!challenge.accepts?.length) {
-        console.log('Server returned 402 but provided no payment requirements.')
+      if (!paymentRequired.accepts?.length) {
+        throw new Error('Server returned 402 but provided no payment requirements.')
       }
 
       if (!wallet.value.isConnected) {
@@ -143,11 +133,8 @@ export function useX402Payment() {
       }
 
       // Sign the first accepted payment scheme
-      const requirement = challenge.accepts[0]
-      console.log("requirement", requirement)
-      const paymentHeader = await signPayment(requirement ?? null)
-
-      console.log("paymentHeader", paymentHeader)
+      const requirement = paymentRequired.accepts[0]!
+      const paymentHeader = await signPayment(paymentRequired, requirement)
 
       if(!paymentHeader){
         throw new Error("Payment header is null")
@@ -157,7 +144,7 @@ export function useX402Payment() {
         ...options,
         headers: {
           ...(options.headers || {}),
-          'x-payment': paymentHeader,
+          'PAYMENT-SIGNATURE': paymentHeader,
         },
       })
     }
