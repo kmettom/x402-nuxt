@@ -1,8 +1,10 @@
 import {ref} from 'vue'
 import {useState} from '#imports'
 import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState} from '../types'
-import { createWalletClient, custom, getAddress } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { createWalletClient, custom, getAddress, type Chain } from 'viem'
+import { base, baseSepolia } from 'viem/chains'
+
+const CHAINS: Record<number, Chain> = { [base.id]: base, [baseSepolia.id]: baseSepolia }
 
 export function useX402Payment() {
   const isPaying = ref(false)
@@ -24,10 +26,11 @@ export function useX402Payment() {
 
     // Network is CAIP-2, e.g. "eip155:84532"
     const chainId = Number(requirement.network.split(':')[1])
-    if (chainId !== baseSepolia.id) throw new Error(`Unsupported network: ${requirement.network}`)
+    const chain = CHAINS[chainId]
+    if (!chain) throw new Error(`Unsupported network: ${requirement.network}`)
 
     const walletClient = createWalletClient({
-      chain: baseSepolia,
+      chain,
       transport: custom(ethereum),
     })
 
@@ -36,12 +39,12 @@ export function useX402Payment() {
     if(!account) return null;
 
     try {
-      await walletClient.switchChain({ id: baseSepolia.id })
+      await walletClient.switchChain({ id: chain.id })
     } catch (err: any) {
       // 4902 = chain not added to MetaMask
       if (err.code === 4902) {
-        await walletClient.addChain({ chain: baseSepolia })
-        await walletClient.switchChain({ id: baseSepolia.id })
+        await walletClient.addChain({ chain })
+        await walletClient.switchChain({ id: chain.id })
       } else {
         throw err
       }
