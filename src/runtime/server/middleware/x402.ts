@@ -23,6 +23,10 @@ export default defineEventHandler(async (event) => {
 
   if (!route) return
 
+  if (!payTo) {
+    throw createError({ statusCode: 500, statusMessage: 'x402 payTo address not configured', message: 'Set X402_PAY_TO in .env or x402.payTo in nuxt.config.' })
+  }
+
   const paymentRequirements: PaymentRequirement = {
     scheme: 'exact',
     network: route.network,
