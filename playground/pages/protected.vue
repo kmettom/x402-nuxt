@@ -7,9 +7,11 @@ definePageMeta({
 })
 
 const { wallet, connect } = useWallet()
-const { isPaying, error, unlock } = usePremiumAccess()
+const { price, isPaying, error, loadPrice, unlock } = usePremiumAccess()
 
 const result = ref<string | null>(null)
+
+onMounted(loadPrice)
 
 async function handleUnlock() {
   result.value = null
@@ -31,13 +33,19 @@ async function handleUnlock() {
 
       <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1rem; background: rgba(255, 255, 255, 0.7); text-align: center;">
         <strong style="font-size: 1.125rem;">🔒 Content locked</strong>
-        <span style="font-size: 0.875rem; color: #555;">Pay with USDC on Base Sepolia to unlock.</span>
+        <span v-if="price" style="font-size: 0.875rem; color: #555;">
+          Price: <strong>{{ price.amountFormatted }}</strong> on <strong>{{ price.networkName }}</strong>
+        </span>
+        <span v-else style="font-size: 0.875rem; color: #555;">Pay with USDC to unlock.</span>
+        <span v-if="price" style="font-size: 0.75rem; color: #777; max-width: 26rem;">
+          MetaMask shows the value in USDC base units ({{ price.amount }} = {{ price.amountFormatted }}). No ETH is spent; the facilitator pays the gas.
+        </span>
 
         <button v-if="!wallet.isConnected" :disabled="wallet.isLoading" @click="connect">
           {{ wallet.isLoading ? 'Connecting...' : 'Connect MetaMask' }}
         </button>
         <button v-else :disabled="isPaying" @click="handleUnlock">
-          {{ isPaying ? 'Processing payment...' : 'Pay to unlock' }}
+          {{ isPaying ? 'Processing payment...' : price ? `Pay ${price.amountFormatted} to unlock` : 'Pay to unlock' }}
         </button>
       </div>
     </section>

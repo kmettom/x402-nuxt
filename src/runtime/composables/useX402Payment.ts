@@ -1,8 +1,9 @@
 import {ref} from 'vue'
 import {useState} from '#imports'
-import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState} from '../types'
+import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState, X402Quote} from '../types'
 import { createWalletClient, custom, getAddress, type Chain } from 'viem'
 import { base, baseSepolia } from 'viem/chains'
+import { formatUsdc, getNetworkInfo } from '../networks'
 
 const CHAINS: Record<number, Chain> = { [base.id]: base, [baseSepolia.id]: baseSepolia }
 
@@ -114,6 +115,24 @@ export function useX402Payment() {
   }
 
 
+  /** Reads the price of a paid route without paying. Returns null if the route is free. */
+  async function quote(url: string, options: RequestInit = {}): Promise<X402Quote | null> {
+    const response = await fetch(url, options)
+    if (response.status !== 402) return null
+
+    const requirement = (await readPaymentRequired(response)).accepts?.[0]
+    if (!requirement) return null
+
+    return {
+      network: requirement.network,
+      networkName: getNetworkInfo(requirement.network)?.name ?? requirement.network,
+      amount: requirement.amount,
+      amountFormatted: formatUsdc(requirement.amount),
+      payTo: requirement.payTo,
+    }
+  }
+
+
   async function pay(url: string, options: RequestInit = {}): Promise<Response> {
     error.value = null
     const response = await fetch(url, options)
@@ -167,5 +186,7 @@ export function useX402Payment() {
     error,
     /** Fetch with automatic 402 payment handling. */
     pay,
+    /** Read a paid route's price and network from its 402 challenge, without paying. */
+    quote,
   }
 }

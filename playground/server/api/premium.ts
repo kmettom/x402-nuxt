@@ -9,6 +9,9 @@ export default defineEventHandler((event) => {
     message: 'You have accessed the premium content!',
     payer: payment?.payer,
     txHash: payment?.txHash,
+    networkName: payment?.networkName,
+    amountFormatted: payment?.amountFormatted,
+    explorerTxUrl: payment?.explorerTxUrl,
     timestamp: new Date().toISOString(),
     // Rendered by pages/premium.vue, so the page content itself is behind the payment wall
     content: {

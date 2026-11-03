@@ -22,10 +22,13 @@ const { access } = usePremiumAccess()
     </p>
 
     <section style="margin-top: 2rem; padding: 1rem; background: #f5f5f5; border-radius: 4px; font-size: 0.875rem; word-break: break-all;">
+      <p v-if="access.amountFormatted" style="margin: 0 0 0.5rem;">
+        Paid: <strong>{{ access.amountFormatted }}</strong> on <strong>{{ access.networkName }}</strong>
+      </p>
       <p style="margin: 0 0 0.5rem;">Payer: <code>{{ access.payer }}</code></p>
       <p v-if="access.txHash" style="margin: 0;">
         Transaction:
-        <a :href="`https://sepolia.basescan.org/tx/${access.txHash}`" target="_blank" rel="noopener">
+        <a :href="access.explorerTxUrl" target="_blank" rel="noopener">
           <code>{{ access.txHash }}</code>
         </a>
       </p>

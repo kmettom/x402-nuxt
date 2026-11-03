@@ -78,7 +78,25 @@ export interface SettleResponse {
   network: string
 }
 
-/** Decoded and verified payment result attached to `event.context.x402`. */
+/** Settled payment attached to `event.context.x402` by the server middleware. */
+export interface X402PaymentContext {
+  /** Settlement transaction hash, submitted by the facilitator. */
+  txHash: string
+  /** Address of the payer. */
+  payer?: string
+  /** CAIP-2 network id, e.g. "eip155:84532". */
+  network: string
+  /** Human-readable network name, e.g. "Base Sepolia". */
+  networkName: string
+  /** Amount in USDC atomic units (6 decimals), e.g. "1000". */
+  amount: string
+  /** Amount for display, e.g. "0.001 USDC". */
+  amountFormatted: string
+  /** Block explorer link to the settlement transaction. */
+  explorerTxUrl?: string
+}
+
+/** Decoded and verified payment result. */
 export interface PaymentResult {
   /** Whether the payment was successfully verified. */
   valid: boolean
@@ -92,6 +110,20 @@ export interface PaymentResult {
   payer?: string
   /** Reason for rejection when valid is false. */
   invalidReason?: string
+}
+
+/** Price of a paid route, read from its 402 challenge. */
+export interface X402Quote {
+  /** CAIP-2 network id, e.g. "eip155:84532". */
+  network: string
+  /** Human-readable network name, e.g. "Base Sepolia". Falls back to the CAIP-2 id. */
+  networkName: string
+  /** Amount in USDC atomic units (6 decimals), e.g. "1000". */
+  amount: string
+  /** Amount for display, e.g. "0.001 USDC". */
+  amountFormatted: string
+  /** Address that receives the payment. */
+  payTo: string
 }
 
 /** Reactive wallet state exposed by composables. */
@@ -130,6 +162,12 @@ declare module 'nuxt/schema' {
     x402: {
       facilitatorUrl: string
     }
+  }
+}
+
+declare module 'h3' {
+  interface H3EventContext {
+    x402?: X402PaymentContext
   }
 }
 

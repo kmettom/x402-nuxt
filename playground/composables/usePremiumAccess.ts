@@ -1,7 +1,12 @@
+import type { X402Quote } from '../../src/runtime/types'
+
 export interface PremiumAccess {
   message: string
   payer?: string
   txHash?: string
+  networkName?: string
+  amountFormatted?: string
+  explorerTxUrl?: string
   timestamp: string
   content: { title: string; paragraphs: string[] }
 }
@@ -9,7 +14,13 @@ export interface PremiumAccess {
 /** Paid /api/premium response, kept in state so pages/premium.vue can render it after the redirect. */
 export function usePremiumAccess() {
   const access = useState<PremiumAccess | null>('premium:access', () => null)
-  const { isPaying, error, pay } = useX402Payment()
+  const { isPaying, error, pay, quote } = useX402Payment()
+  const price = useState<X402Quote | null>('premium:price', () => null)
+
+  /** Loads the price and network from the 402 challenge, so the paywall can show them before paying. */
+  async function loadPrice() {
+    price.value = await quote('/api/premium').catch(() => null)
+  }
 
   /** Pays for /api/premium and redirects to the premium page. Returns an error message on failure. */
   async function unlock(): Promise<string | null> {
@@ -28,5 +39,5 @@ export function usePremiumAccess() {
     }
   }
 
-  return { access, isPaying, error, unlock }
+  return { access, price, isPaying, error, loadPrice, unlock }
 }

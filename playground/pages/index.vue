@@ -1,8 +1,10 @@
 <script setup lang="ts">
 const { wallet, connect, disconnect } = useWallet()
-const { isPaying, error, unlock } = usePremiumAccess()
+const { price, isPaying, error, loadPrice, unlock } = usePremiumAccess()
 
 const premiumContent = ref<string | null>(null)
+
+onMounted(loadPrice)
 
 async function handleFetchPremium() {
   premiumContent.value = null
@@ -36,6 +38,9 @@ async function handleFetchPremium() {
 
     <section style="margin: 2rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">
       <h2>Premium Content (402 Protected)</h2>
+      <p v-if="price">
+        Price: <strong>{{ price.amountFormatted }}</strong> on <strong>{{ price.networkName }}</strong>
+      </p>
       <button :disabled="isPaying" @click="handleFetchPremium">
         {{ isPaying ? 'Processing payment...' : 'Unlock premium page' }}
       </button>

@@ -2,16 +2,11 @@
 import { defineEventHandler, getRequestHeader, setResponseHeader, setResponseStatus, getRequestURL, createError } from 'h3'
 import { getAddress, parseUnits } from 'viem'
 import { useRuntimeConfig } from '#imports'
-import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse, X402Network } from '../../types'
+import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse, X402PaymentContext } from '../../types'
+import { X402_NETWORKS, USDC_DECIMALS, formatUsdc } from '../../networks'
 import { cdpAuthHeaders } from '../utils/cdpAuth'
 
 const X402_VERSION = 2
-
-// USDC contract and its EIP-712 domain per network
-const USDC: Record<X402Network, { address: string; name: string; version: string }> = {
-  'eip155:84532': { address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC', version: '2' },
-  'eip155:8453': { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2' },
-}
 
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64')
 
@@ -30,8 +25,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const network = route.network ?? 'eip155:84532'
-  const usdc = USDC[network]
-  if (!usdc) {
+  const networkInfo = X402_NETWORKS[network]
+  if (!networkInfo) {
     throw createError({ statusCode: 500, statusMessage: 'x402 network not supported', message: `Unsupported network "${network}" for ${routeKey}.` })
   }
 
@@ -39,12 +34,12 @@ export default defineEventHandler(async (event) => {
     scheme: 'exact',
     network,
     // USDC has 6 decimals: $0.001 -> "1000"
-    amount: parseUnits(route.price.replace('$', ''), 6).toString(),
-    asset: usdc.address,
+    amount: parseUnits(route.price.replace('$', ''), USDC_DECIMALS).toString(),
+    asset: networkInfo.usdc.address,
     payTo: getAddress(payTo),
     maxTimeoutSeconds: 300,
     // EIP-712 domain of the USDC contract
-    extra: { name: usdc.name, version: usdc.version },
+    extra: { name: networkInfo.usdc.name, version: networkInfo.usdc.version },
   }
 
   const paymentRequired: PaymentRequired = {
@@ -116,7 +111,12 @@ export default defineEventHandler(async (event) => {
   event.context.x402 = {
     txHash: settleResponse.transaction,
     payer: settleResponse.payer ?? verifyResponse.payer,
-  }
+    network,
+    networkName: networkInfo.name,
+    amount: paymentRequirements.amount,
+    amountFormatted: formatUsdc(paymentRequirements.amount),
+    explorerTxUrl: settleResponse.transaction ? `${networkInfo.explorerUrl}/tx/${settleResponse.transaction}` : undefined,
+  } satisfies X402PaymentContext
 
   setResponseHeader(event, 'PAYMENT-RESPONSE', encode(settleResponse))
 })
