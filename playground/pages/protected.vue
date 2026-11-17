@@ -1,8 +1,8 @@
 <script setup lang="ts">
 definePageMeta({
   // Already paid: skip the paywall and show the premium page
-  middleware: () => {
-    if (useState('premium:access').value) return navigateTo('/premium')
+  middleware: async () => {
+    if (await usePremiumAccess().restore()) return navigateTo('/premium')
   },
 })
 

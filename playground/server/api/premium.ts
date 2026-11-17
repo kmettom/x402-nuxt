@@ -12,6 +12,7 @@ export default defineEventHandler((event) => {
     networkName: payment?.networkName,
     amountFormatted: payment?.amountFormatted,
     explorerTxUrl: payment?.explorerTxUrl,
+    accessExpiresAt: payment?.accessExpiresAt,
     timestamp: new Date().toISOString(),
     // Rendered by pages/premium.vue, so the page content itself is behind the payment wall
     content: {

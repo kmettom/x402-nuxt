@@ -7,6 +7,7 @@ export interface PremiumAccess {
   networkName?: string
   amountFormatted?: string
   explorerTxUrl?: string
+  accessExpiresAt?: number
   timestamp: string
   content: { title: string; paragraphs: string[] }
 }
@@ -16,6 +17,18 @@ export function usePremiumAccess() {
   const access = useState<PremiumAccess | null>('premium:access', () => null)
   const { isPaying, error, pay, quote } = useX402Payment()
   const price = useState<X402Quote | null>('premium:price', () => null)
+  // Forwards the browser's cookies during SSR, so the access cookie reaches /api/premium
+  const requestFetch = useRequestFetch()
+
+  /**
+   * Reloads the content when an earlier payment is still valid (the server keeps it in an httpOnly cookie).
+   * Without one the route answers 402, and access stays null. Returns whether access is available.
+   */
+  async function restore(): Promise<boolean> {
+    if (access.value) return true
+    access.value = await requestFetch<PremiumAccess>('/api/premium').catch(() => null)
+    return !!access.value
+  }
 
   /** Loads the price and network from the 402 challenge, so the paywall can show them before paying. */
   async function loadPrice() {
@@ -39,5 +52,5 @@ export function usePremiumAccess() {
     }
   }
 
-  return { access, price, isPaying, error, loadPrice, unlock }
+  return { access, price, isPaying, error, loadPrice, unlock, restore }
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 definePageMeta({
-  // Only reachable after a successful payment; content comes from the paid /api/premium response
-  middleware: () => {
-    if (!useState('premium:access').value) return navigateTo('/protected')
+  // Only reachable after a successful payment; content comes from the paid /api/premium response.
+  // On a reload the access cookie from that payment unlocks /api/premium again.
+  middleware: async () => {
+    if (!await usePremiumAccess().restore()) return navigateTo('/protected')
   },
 })
 
@@ -26,6 +27,9 @@ const { access } = usePremiumAccess()
         Paid: <strong>{{ access.amountFormatted }}</strong> on <strong>{{ access.networkName }}</strong>
       </p>
       <p style="margin: 0 0 0.5rem;">Payer: <code>{{ access.payer }}</code></p>
+      <p v-if="access.accessExpiresAt" style="margin: 0 0 0.5rem;">
+        Access valid until: {{ new Date(access.accessExpiresAt * 1000).toLocaleString() }}
+      </p>
       <p v-if="access.txHash" style="margin: 0;">
         Transaction:
         <a :href="access.explorerTxUrl" target="_blank" rel="noopener">

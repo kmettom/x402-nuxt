@@ -23,6 +23,10 @@ export interface ModuleOptions {
   cdpApiKeySecret?: string
   /** CDP API key id. Falls back to CDP_API_KEY_ID. */
   cdpApiKeyId?: string
+  /** Seconds a payment keeps a route unlocked, via a signed httpOnly cookie. 0 = pay on every request. */
+  accessMaxAge: number
+  /** Secret that signs the access cookie. Falls back to X402_ACCESS_SECRET, then a random per-process secret. */
+  accessSecret?: string
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -38,6 +42,7 @@ export default defineNuxtModule<ModuleOptions>({
     enabled: true,
     facilitatorUrl: 'https://api.cdp.coinbase.com/platform/v2/x402',
     routes: {},
+    accessMaxAge: 60 * 60 * 24,
   },
 
   setup(options, nuxt) {
@@ -58,6 +63,9 @@ export default defineNuxtModule<ModuleOptions>({
       // Empty means no auth headers are sent (e.g. x402.org testnet facilitator)
       cdpApiKeyId: options.cdpApiKeyId ?? process.env.CDP_API_KEY_ID ?? '',
       cdpApiKeySecret: options.cdpApiKeySecret ?? process.env.CDP_API_KEY_SECRET ?? '',
+      accessMaxAge: options.accessMaxAge,
+      // Overridable at runtime with NUXT_X402_ACCESS_SECRET; empty means a random per-process secret
+      accessSecret: options.accessSecret ?? process.env.X402_ACCESS_SECRET ?? '',
     }
 
     if (!nuxt.options.runtimeConfig.x402.payTo) {

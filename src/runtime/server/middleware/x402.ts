@@ -1,10 +1,11 @@
 // server/middleware/x402.ts
-import { defineEventHandler, getRequestHeader, setResponseHeader, setResponseStatus, getRequestURL, createError } from 'h3'
+import { defineEventHandler, getCookie, getRequestHeader, setCookie, setResponseHeader, setResponseStatus, getRequestURL, createError } from 'h3'
 import { getAddress, parseUnits } from 'viem'
 import { useRuntimeConfig } from '#imports'
 import type { PaymentPayload, PaymentRequired, PaymentRequirement, SettleResponse, VerifyResponse, X402PaymentContext } from '../../types'
 import { X402_NETWORKS, USDC_DECIMALS, formatUsdc } from '../../networks'
 import { cdpAuthHeaders } from '../utils/cdpAuth'
+import { accessCookieName, createAccessToken, readAccessToken, resolveAccessSecret } from '../utils/accessToken'
 
 const X402_VERSION = 2
 
@@ -12,13 +13,24 @@ const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-  const { facilitatorUrl, payTo, routes, cdpApiKeyId, cdpApiKeySecret } = config.x402 ?? {}
+  const { facilitatorUrl, payTo, routes, cdpApiKeyId, cdpApiKeySecret, accessMaxAge, accessSecret } = config.x402 ?? {}
 
   const url = getRequestURL(event)
   const routeKey = `${event.method} ${url.pathname}`
   const route = routes?.[routeKey]
 
   if (!route) return
+
+  // Already paid: a valid access cookie lets the request through without a new payment
+  const maxAge = route.accessMaxAge ?? accessMaxAge ?? 0
+  const cookieName = accessCookieName(routeKey)
+  if (maxAge > 0) {
+    const paid = readAccessToken(getCookie(event, cookieName), routeKey, resolveAccessSecret(accessSecret))
+    if (paid) {
+      event.context.x402 = paid
+      return
+    }
+  }
 
   if (!payTo) {
     throw createError({ statusCode: 500, statusMessage: 'x402 payTo address not configured', message: 'Set X402_PAY_TO in .env or x402.payTo in nuxt.config.' })
@@ -108,7 +120,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 402, statusMessage: 'Payment settlement failed', data: { errorReason: settleResponse.errorReason } })
   }
 
-  event.context.x402 = {
+  const payment: X402PaymentContext = {
     txHash: settleResponse.transaction,
     payer: settleResponse.payer ?? verifyResponse.payer,
     network,
@@ -116,9 +128,22 @@ export default defineEventHandler(async (event) => {
     amount: paymentRequirements.amount,
     amountFormatted: formatUsdc(paymentRequirements.amount),
     explorerTxUrl: settleResponse.transaction ? `${networkInfo.explorerUrl}/tx/${settleResponse.transaction}` : undefined,
-  } satisfies X402PaymentContext
+  }
+  event.context.x402 = payment
 
   setResponseHeader(event, 'PAYMENT-RESPONSE', encode(settleResponse))
+
+  if (maxAge > 0) {
+    const exp = Math.floor(Date.now() / 1000) + maxAge
+    event.context.x402.accessExpiresAt = exp
+    setCookie(event, cookieName, createAccessToken({ route: routeKey, exp, payment }, resolveAccessSecret(accessSecret)), {
+      httpOnly: true,
+      secure: url.protocol === 'https:',
+      sameSite: 'lax',
+      path: '/',
+      maxAge,
+    })
+  }
 })
 
 function facilitatorError(err: any): string {

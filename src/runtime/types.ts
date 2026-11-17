@@ -15,6 +15,8 @@ export interface X402RouteConfig {
   network?: X402Network
   /** Shown to the client in the 402 challenge. */
   description?: string
+  /** Seconds a payment keeps the route unlocked (via a signed cookie). Overrides the module `accessMaxAge`; 0 = pay per request. */
+  accessMaxAge?: number
 }
 
 // -- Payment protocol types ---------------------------------------------------
@@ -94,6 +96,8 @@ export interface X402PaymentContext {
   amountFormatted: string
   /** Block explorer link to the settlement transaction. */
   explorerTxUrl?: string
+  /** When the paid access expires (unix seconds). Set when access is kept in a cookie. */
+  accessExpiresAt?: number
 }
 
 /** Decoded and verified payment result. */
@@ -156,6 +160,8 @@ declare module 'nuxt/schema' {
       payTo:string
       cdpApiKeyId:string
       cdpApiKeySecret:string
+      accessMaxAge: number
+      accessSecret: string
     }
   }
   interface PublicRuntimeConfig {

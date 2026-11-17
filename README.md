@@ -31,6 +31,7 @@ export default defineNuxtConfig({
 X402_PAY_TO=0xYourReceivingAddress
 CDP_API_KEY_ID=your-cdp-key-id
 CDP_API_KEY_SECRET=your-cdp-key-secret
+X402_ACCESS_SECRET=a-long-random-string   # signs the "already paid" cookie
 ```
 
 CDP API keys are created in the [Coinbase Developer Platform](https://portal.cdp.coinbase.com). Both ECDSA (PEM) and Ed25519 secrets are supported.
@@ -39,7 +40,9 @@ CDP API keys are created in the [Coinbase Developer Platform](https://portal.cdp
 
 | Option | Default | Description |
 |---|---|---|
-| `routes` | `{}` | Paid routes keyed by `"METHOD /path"` (exact match). Each takes `price` (USD, paid in USDC), optional `network` and `description`. |
+| `routes` | `{}` | Paid routes keyed by `"METHOD /path"` (exact match). Each takes `price` (USD, paid in USDC), optional `network`, `description` and `accessMaxAge`. |
+| `accessMaxAge` | `86400` (24 h) | Seconds a payment keeps the route unlocked. After settling, the server sets a signed httpOnly cookie for that route, so reloads and new tabs don't pay again. `0` = pay on every request. |
+| `accessSecret` | `X402_ACCESS_SECRET` | Secret that signs the access cookie. When empty, a random secret is generated per server process, so paid access is lost on restart. Set it in production. |
 | `payTo` | `X402_PAY_TO` | Address that receives payments. |
 | `facilitatorUrl` | `https://api.cdp.coinbase.com/platform/v2/x402` | Facilitator used for `/verify` and `/settle`. |
 | `cdpApiKeyId` | `CDP_API_KEY_ID` | CDP API key id. When empty, no auth header is sent. |
@@ -61,6 +64,8 @@ export default defineEventHandler((event) => {
   return { message: 'Paid content', payer, txHash }
 })
 ```
+
+After a payment, requests carrying a valid access cookie skip the payment and get the same `event.context.x402` (plus `accessExpiresAt`). To restore paid content after a page reload, fetch the route again; during SSR use `useRequestFetch()` so the cookie is forwarded.
 
 ### Client
 
