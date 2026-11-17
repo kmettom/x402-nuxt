@@ -1,6 +1,6 @@
 {
   "name": "x402-nuxt",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Nuxt 3 module for x402 HTTP payment protocol — server-side route protection and client-side wallet integration",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,8 @@
   "scripts": {
     "build": "nuxt-module-build build",
     "dev": "nuxi dev playground --dotenv ../.env",
-    "prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxi prepare playground"
+    "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxi prepare playground",
+    "prepack": "nuxt-module-build build"
   },
   "dependencies": {
     "viem": "2.47.0"
