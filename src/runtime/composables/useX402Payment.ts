@@ -1,6 +1,6 @@
 import {ref} from 'vue'
 import {useState} from '#imports'
-import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState, X402Quote} from '../types'
+import type {EIP1193Provider, PaymentPayload, PaymentRequired, PaymentRequirement, WalletState, X402Quote, X402RequestInit} from '../types'
 import { createWalletClient, custom, getAddress, type Chain } from 'viem'
 import { base, baseSepolia } from 'viem/chains'
 import { formatUsdc, getNetworkInfo } from '../networks'
@@ -115,12 +115,25 @@ export function useX402Payment() {
   }
 
 
-  /** Reads the price of a paid route without paying. Returns null if the route is free. */
-  async function quote(url: string, options: RequestInit = {}): Promise<X402Quote | null> {
-    const response = await fetch(url, options)
+  /** Turns `amount` into the `X402-Amount` header; the server only honours it on payer-chosen price routes. */
+  function toRequestInit({ amount, ...init }: X402RequestInit): RequestInit {
+    if (amount === undefined || amount === '') return init
+    const headers = new Headers(init.headers)
+    headers.set('X402-Amount', String(amount).trim())
+    return { ...init, headers }
+  }
+
+
+  /**
+   * Reads the price of a paid route without paying. Returns null if the route is free.
+   * Pass the same options as to `pay()` (method, body, amount) so the server quotes the same purchase.
+   */
+  async function quote(url: string, options: X402RequestInit = {}): Promise<X402Quote | null> {
+    const response = await fetch(url, toRequestInit(options))
     if (response.status !== 402) return null
 
-    const requirement = (await readPaymentRequired(response)).accepts?.[0]
+    const paymentRequired = await readPaymentRequired(response)
+    const requirement = paymentRequired.accepts?.[0]
     if (!requirement) return null
 
     return {
@@ -129,12 +142,18 @@ export function useX402Payment() {
       amount: requirement.amount,
       amountFormatted: formatUsdc(requirement.amount),
       payTo: requirement.payTo,
+      description: paymentRequired.resource?.description,
     }
   }
 
 
-  async function pay(url: string, options: RequestInit = {}): Promise<Response> {
+  /**
+   * `fetch` with automatic 402 handling: on a 402 challenge, signs the payment in MetaMask and retries.
+   * The server decides the amount; `options.amount` is only used by routes with a payer-chosen price.
+   */
+  async function pay(url: string, payOptions: X402RequestInit = {}): Promise<Response> {
     error.value = null
+    const options = toRequestInit(payOptions)
     const response = await fetch(url, options)
 
     if (response.status !== 402) {
@@ -162,13 +181,9 @@ export function useX402Payment() {
         throw new Error("Payment header is null")
       }
 
-      return await fetch(url, {
-        ...options,
-        headers: {
-          ...(options.headers || {}),
-          'PAYMENT-SIGNATURE': paymentHeader,
-        },
-      })
+      const headers = new Headers(options.headers)
+      headers.set('PAYMENT-SIGNATURE', paymentHeader)
+      return await fetch(url, { ...options, headers })
     }
     catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Payment failed'

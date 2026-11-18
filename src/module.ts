@@ -4,6 +4,7 @@ import {
   addPlugin,
   addImportsDir,
   addServerHandler,
+  addServerImports,
   createResolver,
 } from '@nuxt/kit'
 
@@ -15,7 +16,12 @@ export interface ModuleOptions {
   facilitatorUrl: string
   /** Set to false to disable the module. */
   enabled: boolean
-  /** Paid routes, keyed by "METHOD /path", e.g. `'GET /api/premium': { price: '$0.001' }`. */
+  /**
+   * Paid routes, keyed by "METHOD /path". Paths support `:param` and `**` wildcards.
+   * Fixed price: `'GET /api/premium': { price: '$0.001' }`.
+   * Payer-chosen: `'POST /api/donate': { price: { min: '$0.5', max: '$500' } }`.
+   * For prices computed per request, use `defineX402Handler` in the route file instead.
+   */
   routes: Record<string, X402RouteConfig>
   /** Address that receives payments. Falls back to X402_PAY_TO. */
   payTo?: string
@@ -76,6 +82,18 @@ export default defineNuxtModule<ModuleOptions>({
       console.warn('[x402-nuxt] CDP facilitator configured without CDP_API_KEY_ID / CDP_API_KEY_SECRET; requests will be rejected with 401.')
     }
 
+    // Catch malformed prices at build time instead of on the first paid request
+    const isUsd = (value: unknown) => typeof value === 'string' && /^\$?\d+(\.\d{1,6})?$/.test(value.trim())
+    for (const [key, route] of Object.entries(options.routes)) {
+      const price = route.price
+      const valid = typeof price === 'string'
+        ? isUsd(price)
+        : isUsd(price?.min) && isUsd(price?.max) && (price.default === undefined || isUsd(price.default))
+      if (!valid) {
+        throw new Error(`[x402-nuxt] Invalid price for route "${key}": use a USD amount with at most 6 decimals ("$0.01") or { min, max, default? }.`)
+      }
+    }
+
     nuxt.options.runtimeConfig.public.x402 = {
       facilitatorUrl: options.facilitatorUrl,
     }
@@ -87,6 +105,12 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolve(runtimeDir, 'server/middleware/x402'),
       middleware: true,
     })
+
+    // Server auto-imports: paid routes with prices decided per request
+    addServerImports([
+      { name: 'defineX402Handler', from: resolve(runtimeDir, 'server/utils/defineX402Handler') },
+      { name: 'parseUsdPrice', from: resolve(runtimeDir, 'server/utils/x402Payment') },
+    ])
 
     // ---------------------
     // Client: wallet plugin
