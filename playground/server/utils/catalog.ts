@@ -76,4 +76,11 @@ export interface Order {
   payer?: string
 }
 
-export const orders = new Map<string, Order>()
+/**
+ * Orders live in Nitro storage: in memory locally, in Upstash Redis when it is configured (see server/plugins/storage.ts).
+ * A module-level Map would not work on serverless hosts, where creating and paying an order can hit different instances.
+ */
+const orderStorage = () => useStorage<Order>('orders')
+
+export const getOrder = (id: string) => orderStorage().getItem(id)
+export const saveOrder = (order: Order) => orderStorage().setItem(order.id, order)

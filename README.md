@@ -236,6 +236,22 @@ The playground has one example per pricing mode:
 | `/articles` | Computed price for each article, each unlocked on its own | `server/api/articles/[slug].get.ts` |
 | `/shop` | Computed order total, each order paid once | `server/api/orders.post.ts`, `server/api/orders/[id]/pay.post.ts` |
 
+### Deploying the playground to Vercel
+
+Import the repo into Vercel with the repo root as the Root Directory. `vercel.json` builds the playground with `npm run build:playground`.
+
+Set these environment variables in the Vercel project:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `NUXT_X402_PAY_TO` | yes | Address that receives payments |
+| `NUXT_X402_CDP_API_KEY_ID` | yes, with the CDP facilitator | CDP API key id |
+| `NUXT_X402_CDP_API_KEY_SECRET` | yes, with the CDP facilitator | CDP API key secret (multi-line PEM is fine) |
+| `NUXT_X402_ACCESS_SECRET` | yes | Signs access cookies. Without it each serverless instance uses its own random secret and paid access is lost between requests. Generate with `openssl rand -hex 32`. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | for `/shop` | Stores shop orders. The `KV_REST_API_URL` / `KV_REST_API_TOKEN` names set by Vercel's Upstash integration also work. |
+
+The `NUXT_X402_*` names are read when the app runs, so the secrets are not written into the build output.
+
 ## Development
 
 ```bash

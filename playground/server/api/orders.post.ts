@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const total = items.reduce((sum, item) => sum + BigInt(item.unitAmount) * BigInt(item.quantity), BigInt(0))
   const order: Order = { id: randomUUID().slice(0, 8), items, totalAmount: total.toString(), status: 'pending' }
-  orders.set(order.id, order)
+  await saveOrder(order)
 
   return { ...order, totalFormatted: `${formatUnits(total, 6)} USDC` }
 })

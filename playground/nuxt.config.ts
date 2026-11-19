@@ -16,6 +16,12 @@ export default defineNuxtConfig({
     cdpApiKeyId: process.env.CDP_API_KEY_ID,
   },
 
+  nitro: {
+    // The playground is built from the repo root, so Vercel looks for the build in <repo>/.vercel/output,
+    // not in playground/.vercel/output where the Vercel preset writes it by default.
+    ...(process.env.VERCEL ? { output: { dir: '../.vercel/output' } } : {}),
+  },
+
   devtools: { enabled: true },
   compatibilityDate: '2025-01-01',
 })

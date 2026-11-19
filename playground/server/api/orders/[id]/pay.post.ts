@@ -8,8 +8,8 @@ import { formatUnits } from 'viem'
  * and computed prices default to accessMaxAge 0, so a paid order never unlocks another one.
  */
 export default defineX402Handler({
-  price: (event) => {
-    const order = orders.get(getRouterParam(event, 'id') ?? '')
+  price: async (event) => {
+    const order = await getOrder(getRouterParam(event, 'id') ?? '')
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
     if (order.status === 'paid') throw createError({ statusCode: 409, statusMessage: 'Order already paid' })
 
@@ -19,14 +19,15 @@ export default defineX402Handler({
       description: `Order #${order.id}`,
     }
   },
-}, (event) => {
-  const order = orders.get(getRouterParam(event, 'id')!)!
+}, async (event) => {
+  const order = (await getOrder(getRouterParam(event, 'id')!))!
   const payment = event.context.x402!
 
   // Fulfil the order: mark it paid with the settlement details
   order.status = 'paid'
   order.txHash = payment.txHash
   order.payer = payment.payer
+  await saveOrder(order)
 
   return {
     ...order,
