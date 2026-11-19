@@ -11,7 +11,7 @@ const { wallet, connect } = useWallet()
 const { pay, isPaying } = useX402Payment()
 
 // Free input: the server accepts any amount between the min and max set in nuxt.config
-const amount = ref('0.01')
+const amount = ref('5.0')
 const receipt = ref<DonationReceipt | null>(null)
 const message = ref<string | null>(null)
 
