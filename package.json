@@ -18,7 +18,7 @@
   "scripts": {
     "build": "nuxt-module-build build",
     "dev": "nuxi dev playground --dotenv ../.env",
-    "build:playground": "nuxi build playground",
+    "build:playground": "nuxt-module-build prepare && nuxi build playground",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxi prepare playground",
     "prepack": "nuxt-module-build build"
   },
