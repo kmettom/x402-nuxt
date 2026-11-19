@@ -53,9 +53,9 @@ export interface Product {
 }
 
 export const products: Product[] = [
-  { id: 'sticker', name: 'x402 sticker', price: '$0.001' },
-  { id: 'mug', name: 'x402 mug', price: '$0.005' },
-  { id: 'shirt', name: 'x402 T-shirt', price: '$0.01' },
+  { id: 'sticker', name: 'x402 sticker', price: '$1' },
+  { id: 'mug', name: 'x402 mug', price: '$15' },
+  { id: 'shirt', name: 'x402 T-shirt', price: '$35' },
 ]
 
 export interface OrderItem {
